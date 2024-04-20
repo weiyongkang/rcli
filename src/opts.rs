@@ -13,13 +13,15 @@ pub struct Opts {
 pub enum Subcommand {
     #[command(name = "csv")]
     Csv(CsvOption),
+    #[command(name = "genpass")]
+    Genpass(GenpassOption),
 }
 
 #[derive(Debug, Clone, Copy)]
 pub enum OutputFormat {
     Json,
     Yaml,
-    Toml,
+    Toml, // todo toml 格式与 json yaml差别过大，过段时间实现
 }
 
 #[derive(Parser, Debug)]
@@ -38,6 +40,24 @@ pub struct CsvOption {
 
     #[arg(long, default_value_t = true)]
     pub header: bool,
+}
+
+#[derive(Parser, Debug)]
+pub struct GenpassOption {
+    #[arg(long, short, default_value_t = 16)]
+    pub length: u8,
+
+    #[arg(long, default_value_t = false)]
+    pub no_uppercase: bool,
+
+    #[arg(long, default_value_t = false)]
+    pub no_lowercase: bool,
+
+    #[arg(long, default_value_t = false)]
+    pub no_number: bool,
+
+    #[arg(long, default_value_t = false)]
+    pub no_symbol: bool,
 }
 
 fn verify_input_file(filename: &str) -> Result<String, String> {

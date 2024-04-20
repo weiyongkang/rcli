@@ -1,21 +1,8 @@
+use std::{fmt::Display, str::FromStr};
+
 use clap::Parser;
-use std::{fmt::Display, path::Path, str::FromStr};
 
-/// Simple program to greet a person
-#[derive(Parser, Debug)]
-#[command(name = "rcli",version, about, long_about = None)]
-pub struct Opts {
-    #[command(subcommand)]
-    pub cmd: Subcommand,
-}
-
-#[derive(Parser, Debug)]
-pub enum Subcommand {
-    #[command(name = "csv")]
-    Csv(CsvOption),
-    #[command(name = "genpass")]
-    Genpass(GenpassOption),
-}
+use super::verify_file;
 
 #[derive(Debug, Clone, Copy)]
 pub enum OutputFormat {
@@ -26,7 +13,7 @@ pub enum OutputFormat {
 
 #[derive(Parser, Debug)]
 pub struct CsvOption {
-    #[arg(long, short, value_parser = verify_input_file)]
+    #[arg(long, short, value_parser = verify_file)]
     pub input: String,
 
     #[arg(long, short)]
@@ -40,32 +27,6 @@ pub struct CsvOption {
 
     #[arg(long, default_value_t = true)]
     pub header: bool,
-}
-
-#[derive(Parser, Debug)]
-pub struct GenpassOption {
-    #[arg(long, short, default_value_t = 16)]
-    pub length: u8,
-
-    #[arg(long, default_value_t = false)]
-    pub no_uppercase: bool,
-
-    #[arg(long, default_value_t = false)]
-    pub no_lowercase: bool,
-
-    #[arg(long, default_value_t = false)]
-    pub no_number: bool,
-
-    #[arg(long, default_value_t = false)]
-    pub no_symbol: bool,
-}
-
-fn verify_input_file(filename: &str) -> Result<String, String> {
-    if Path::new(filename).exists() {
-        Ok(filename.into())
-    } else {
-        Err("file is not exists".into())
-    }
 }
 
 fn parse_format(format: &str) -> Result<OutputFormat, anyhow::Error> {

@@ -1,11 +1,11 @@
-use anyhow::Result;
+use anyhow::{Ok, Result};
 use rand::seq::SliceRandom;
-use zxcvbn::zxcvbn;
 
+// 去除 O0 Il，避免歧义，可以参考base58
 const UPPER: &[u8] = b"ABCDEFGHJKLMNPQRSTUVWSYZ";
 const LOWER: &[u8] = b"abcdefghijkmnopqrstuvwsyz";
 const NUMBER: &[u8] = b"123456789";
-const SYMBOL: &[u8] = b"!@#$%^&*.,_-+=";
+const SYMBOL: &[u8] = b"!@#$%^&*._-+=";
 
 pub fn process_genpass(
     length: u8,
@@ -13,7 +13,7 @@ pub fn process_genpass(
     lower: bool,
     number: bool,
     symbol: bool,
-) -> Result<()> {
+) -> Result<String> {
     let mut rng = rand::thread_rng();
     let mut password: Vec<u8> = Vec::new();
     let mut chars = Vec::<u8>::new();
@@ -67,10 +67,5 @@ pub fn process_genpass(
 
     // todo: make sure the password has at lease on of each type
     let password = String::from_utf8(password)?;
-    println!("password: {}", password);
-
-    let estimate = zxcvbn(&password, &[])?;
-    eprintln!("password strength: {}", estimate.score());
-
-    Ok(())
+    Ok(password)
 }

@@ -4,17 +4,17 @@ mod genpass;
 mod http;
 mod jwt;
 mod text;
+use clap::Parser;
 use std::path::{Path, PathBuf};
 
 // use crate::CMDExector;
 
 use self::{csv::CsvOption, genpass::GenpassOption};
-use clap::Parser;
 
 pub use self::base64::{Base64Format, Base64SubConnand};
 pub use self::csv::OutputFormat;
 pub use self::http::{HttpServerOpts, HttpSubConnand};
-pub use self::jwt::JwtSubConnand;
+pub use self::jwt::{JwtSignOpts, JwtSubConnand};
 pub use self::text::{TextSignFormat, TextSubConnand};
 /// Simple program to greet a person
 #[derive(Parser, Debug)]

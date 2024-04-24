@@ -56,3 +56,22 @@ impl IoF {
         }
     }
 }
+
+pub fn verify_time(date: &str) -> anyhow::Result<usize> {
+    let r = regex::Regex::new(r"^[0-9]{1,}[smhd]$").unwrap();
+    if r.captures(date).is_none() {
+        anyhow::bail!("{} is not format !!", date)
+    } else {
+        let (num_str, unit_str) = date.split_at(date.len() - 1);
+        let val_unit: char = unit_str.chars().last().unwrap().to_ascii_lowercase();
+        let val_number: usize = num_str.parse::<usize>().unwrap();
+
+        match val_unit {
+            's' => Ok(val_number),
+            'm' => Ok(60 * val_number),
+            'h' => Ok(60 * 60 * val_number),
+            'd' => Ok(60 * 60 * 24 * val_number),
+            v => anyhow::bail!("{} is not unit", v),
+        }
+    }
+}

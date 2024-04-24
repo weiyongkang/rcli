@@ -2,6 +2,7 @@ mod b64;
 mod csv_convert;
 mod gen_pass;
 mod http_server;
+mod jwt;
 mod text;
 
 pub use b64::{process_decode, process_encode};
@@ -12,3 +13,5 @@ pub use text::{
     process_text_decrypt, process_text_encrypt, process_text_generate, process_text_sign,
     process_text_verify, EncryptionKey,
 };
+
+pub use jwt::{process_jwt_sign, process_jwt_verify};

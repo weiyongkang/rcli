@@ -3,9 +3,9 @@ use std::fs;
 use clap::Parser;
 use rcli::{
     process_csv, process_decode, process_encode, process_genpass, process_http_server,
-    process_text_decrypt, process_text_encrypt, process_text_generate, process_text_sign,
-    process_text_verify, Base64SubConnand, EncryptionKey, HttpSubConnand, Opts, Subcommand,
-    TextSubConnand,
+    process_jwt_sign, process_jwt_verify, process_text_decrypt, process_text_encrypt,
+    process_text_generate, process_text_sign, process_text_verify, Base64SubConnand, EncryptionKey,
+    HttpSubConnand, Opts, Subcommand, TextSubConnand,
 };
 use zxcvbn::zxcvbn;
 
@@ -85,9 +85,16 @@ async fn main() -> anyhow::Result<()> {
                 process_http_server(server.dir, server.port).await?;
             }
         },
-        Subcommand::Jwt(opts) => {
-            println!("{:?}", opts)
-        }
+        Subcommand::Jwt(opts) => match opts {
+            rcli::JwtSubConnand::Sign(opts) => {
+                let sign = process_jwt_sign(opts.aud, opts.exp, opts.sub, opts.iss, opts.key)?;
+                println!("{}", sign);
+            }
+            rcli::JwtSubConnand::Verify(opts) => {
+                let verify = process_jwt_verify(&opts.token, &opts.key)?;
+                println!("{}", verify);
+            }
+        },
     }
     Ok(())
 }

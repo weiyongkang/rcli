@@ -2,13 +2,17 @@ use std::fs;
 
 use clap::Parser;
 use rcli::{
-    process_csv, process_decode, process_encode, process_genpass, process_text_generate,
-    process_text_sign, process_text_verify, Base64SubConnand, Encryption, Opts, Subcommand,
+    process_csv, process_decode, process_encode, process_genpass, process_http_server,
+    process_text_decrypt, process_text_encrypt, process_text_generate, process_text_sign,
+    process_text_verify, Base64SubConnand, EncryptionKey, HttpSubConnand, Opts, Subcommand,
     TextSubConnand,
 };
 use zxcvbn::zxcvbn;
 
-fn main() -> anyhow::Result<()> {
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    tracing_subscriber::fmt::init();
+
     let opts = Opts::parse();
     match opts.cmd {
         Subcommand::Csv(opts) => {
@@ -54,12 +58,12 @@ fn main() -> anyhow::Result<()> {
             TextSubConnand::Generate(opts) => {
                 let key = process_text_generate(opts.format)?;
                 match key {
-                    Encryption::Symmetric(k) => {
+                    EncryptionKey::Symmetric(k) => {
                         let name = format!("{}.txt", opts.format);
                         let name = opts.output.join(name);
                         fs::write(name, k)?;
                     }
-                    Encryption::Asymmetric(pk, sk) => {
+                    EncryptionKey::Asymmetric(pk, sk) => {
                         let name = opts.output.join(format!("{}.{}", opts.format, "pk"));
                         fs::write(name, pk)?;
                         let name = opts.output.join(format!("{}.{}", opts.format, "sk"));
@@ -67,7 +71,23 @@ fn main() -> anyhow::Result<()> {
                     }
                 }
             }
+            TextSubConnand::Decrypt(opts) => {
+                let data = process_text_decrypt(&opts.input, &opts.key)?;
+                println!("{}", data);
+            }
+            TextSubConnand::Encrypt(opts) => {
+                let data = process_text_encrypt(&opts.input, &opts.key)?;
+                println!("{}", data);
+            }
         },
+        Subcommand::Http(opts) => match opts {
+            HttpSubConnand::Server(server) => {
+                process_http_server(server.dir, server.port).await?;
+            }
+        },
+        Subcommand::Jwt(opts) => {
+            println!("{:?}", opts)
+        }
     }
     Ok(())
 }

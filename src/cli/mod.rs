@@ -1,17 +1,21 @@
 mod base64;
 mod csv;
 mod genpass;
+mod http;
+mod jwt;
 mod text;
-
 use std::path::{Path, PathBuf};
+
+// use crate::CMDExector;
 
 use self::{csv::CsvOption, genpass::GenpassOption};
 use clap::Parser;
 
 pub use self::base64::{Base64Format, Base64SubConnand};
 pub use self::csv::OutputFormat;
+pub use self::http::{HttpServerOpts, HttpSubConnand};
+pub use self::jwt::JwtSubConnand;
 pub use self::text::{TextSignFormat, TextSubConnand};
-
 /// Simple program to greet a person
 #[derive(Parser, Debug)]
 #[command(name = "rcli",version, about, long_about = None)]
@@ -30,6 +34,10 @@ pub enum Subcommand {
     Base64(Base64SubConnand),
     #[command(subcommand)]
     Text(TextSubConnand),
+    #[command(subcommand)]
+    Http(HttpSubConnand),
+    #[command(subcommand)]
+    Jwt(JwtSubConnand),
 }
 
 fn verify_file(filename: &str) -> Result<String, String> {

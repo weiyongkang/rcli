@@ -1,8 +1,17 @@
-use std::{fs, io::Read, path::Path};
+use std::{
+    fs,
+    io::Read,
+    path::{Path, PathBuf},
+};
 
-use crate::{get_reader, process_genpass, TextSignFormat};
+use crate::{get_reader, process_genpass, IoF, TextSignFormat};
 use anyhow::{Ok, Result};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
+use chacha20poly1305::{
+    aead::{generic_array::GenericArray, AeadMut},
+    consts::U12,
+    ChaCha20Poly1305, KeyInit,
+};
 use ed25519_dalek::{Signature, Signer, SigningKey, VerifyingKey};
 use rand::rngs::OsRng;
 
@@ -62,18 +71,20 @@ pub trait TextVerify {
 
 pub struct Blake3 {
     key: [u8; 32],
+    #[allow(dead_code)]
+    salt: [u8; 32],
 }
 
 impl Blake3 {
     pub fn new(key: [u8; 32]) -> Self {
-        Self { key }
+        Self { key, salt: key }
     }
 
     pub fn try_new(key: &[u8]) -> Result<Self> {
         let key = &key[..32];
         let key = key.try_into().unwrap();
-        let signer = Self::new(key);
-        Ok(signer)
+        let this = Self::new(key);
+        Ok(this)
     }
 }
 
@@ -187,28 +198,28 @@ impl KeyLoader for Ed25519Verify {
 }
 
 pub trait KeyGenerator {
-    fn generatr() -> Result<Encryption>;
+    fn generatr() -> Result<EncryptionKey>;
 }
 
 impl KeyGenerator for Blake3 {
-    fn generatr() -> Result<Encryption> {
+    fn generatr() -> Result<EncryptionKey> {
         let key = process_genpass(32, true, true, true, false)?;
         let key = key.as_bytes().to_vec();
-        Ok(Encryption::Symmetric(key))
+        Ok(EncryptionKey::Symmetric(key))
     }
 }
 
 impl KeyGenerator for Ed25519Signer {
-    fn generatr() -> Result<Encryption> {
+    fn generatr() -> Result<EncryptionKey> {
         let mut csprng = OsRng;
         let sk = SigningKey::generate(&mut csprng);
         let pk = sk.verifying_key().to_bytes().to_vec();
         let sk = sk.as_bytes().to_vec();
-        Ok(Encryption::Asymmetric(pk, sk))
+        Ok(EncryptionKey::Asymmetric(pk, sk))
     }
 }
 
-pub fn process_text_generate(format: TextSignFormat) -> Result<Encryption> {
+pub fn process_text_generate(format: TextSignFormat) -> Result<EncryptionKey> {
     match format {
         TextSignFormat::Blake3 => Blake3::generatr(),
         TextSignFormat::Ed25519 => Ed25519Signer::generatr(),
@@ -216,15 +227,157 @@ pub fn process_text_generate(format: TextSignFormat) -> Result<Encryption> {
 }
 
 #[derive(Debug, Clone)]
-pub enum Encryption {
+pub enum EncryptionKey {
     Symmetric(Vec<u8>),           // 密钥
     Asymmetric(Vec<u8>, Vec<u8>), // 公钥和密钥
 }
 
+//=============================================================================================
+
+pub trait TextEncrypt {
+    fn encrypt(&self, data: Vec<u8>) -> Result<Vec<u8>>;
+
+    fn encrypt_in_read(&self, mut data: impl Read) -> Result<Vec<u8>> {
+        // let mut buf: Vec<u8> = Vec::new();
+        // data.read_to_end(&mut buf)?;
+        // Self::encrypt(&self, buf)
+
+        let mut strs = String::new();
+        data.read_to_string(&mut strs)?;
+        Self::encrypt(self, strs.trim().into())
+    }
+}
+
+pub trait TextDecrypt {
+    fn decrypt(&self, data: Vec<u8>) -> Result<Vec<u8>>;
+
+    fn decrypt_in_read(&self, mut data: impl Read) -> Result<Vec<u8>> {
+        // let mut buf: Vec<u8> = Vec::new();
+        // data.read_to_end(&mut buf)?;
+        // Self::decrypt(&self, buf)
+
+        //
+        let mut strs = String::new();
+        data.read_to_string(&mut strs)?;
+        Self::decrypt(self, strs.trim().into())
+    }
+}
+
+struct Chacha20 {
+    pub key: [u8; 32],
+}
+
+impl Chacha20 {
+    pub fn new(key: [u8; 32]) -> Self {
+        Self { key }
+    }
+
+    pub fn try_new(key: &[u8]) -> Result<Self> {
+        let key = &key[..32];
+        let key = key.try_into().unwrap();
+        let signer = Self::new(key);
+        Ok(signer)
+    }
+}
+
+impl KeyLoader for Chacha20 {
+    fn load(path: impl AsRef<Path>) -> Result<Self>
+    where
+        Self: Sized,
+    {
+        let key: Vec<u8> = fs::read(path)?;
+        Self::try_new(&key)
+    }
+}
+
+impl TextEncrypt for Chacha20 {
+    fn encrypt(&self, data: Vec<u8>) -> Result<Vec<u8>> {
+        // let mut buf: Vec<u8> = Vec::new();
+        // let _ = data.read_to_end(&mut buf)?;
+
+        let key = chacha20poly1305::Key::clone_from_slice(self.key.as_slice());
+        // let key = match key {
+        //     Some(ok) => {
+        //         ok
+        //     },
+        //     None => {
+        //         anyhow::bail!("key is from error!")
+        //     }
+        // };
+
+        // let mut ciphers = chacha20poly1305::ChaChaPoly1305::new_from_slice(self.key.as_slice());
+
+        let mut ciphers = ChaCha20Poly1305::new(&key);
+        let nonce: GenericArray<_, U12> =
+            chacha20poly1305::Nonce::clone_from_slice(&self.key.as_slice()[0..12]);
+        // let nonce:GenericArray<_,U12> = chacha20poly1305::ChaCha20Poly1305::generate_nonce(&mut OsRng); // 96-bits; unique per message
+
+        match ciphers.encrypt(&nonce, data.as_ref()) {
+            core::result::Result::Ok(d) => Ok(URL_SAFE_NO_PAD.encode(d).into()),
+            core::result::Result::Err(_) => {
+                anyhow::bail!("data is from encrypt!")
+            }
+        }
+    }
+}
+
+impl TextDecrypt for Chacha20 {
+    fn decrypt(&self, data: Vec<u8>) -> Result<Vec<u8>> {
+        // let mut buf: Vec<u8> = Vec::new();
+        // let _ = data.read_to_end(&mut buf)?;
+
+        let data = URL_SAFE_NO_PAD.decode(data)?;
+
+        let key = chacha20poly1305::Key::clone_from_slice(self.key.as_slice());
+        // let key = match key {
+        //     Some(ok) => {
+        //         ok
+        //     },
+        //     None => {
+        //         anyhow::bail!("key is from error!")
+        //     }
+        // };
+
+        // let mut ciphers = chacha20poly1305::ChaChaPoly1305::new_from_slice(self.key.as_slice());
+
+        let mut ciphers = ChaCha20Poly1305::new(&key);
+        let nonce: GenericArray<_, U12> =
+            chacha20poly1305::Nonce::clone_from_slice(&self.key.as_slice()[0..12]);
+
+        match ciphers.decrypt(&nonce, data.as_ref()) {
+            core::result::Result::Ok(d) => Ok(d),
+            core::result::Result::Err(_) => {
+                anyhow::bail!("data is from encrypt!")
+            }
+        }
+    }
+}
+
+pub fn process_text_encrypt(input: &str, key: &str) -> Result<String> {
+    let iof = IoF::new(input);
+    let encrypt = Chacha20::load(PathBuf::from(key))?;
+    let ret = encrypt.encrypt(iof.read()?)?;
+    Ok(String::from_utf8(ret)?)
+}
+
+pub fn process_text_decrypt(input: &str, key: &str) -> Result<String> {
+    let iof = IoF::new(input);
+    let encrypt: Chacha20 = Chacha20::load(PathBuf::from(key))?;
+    let ret = encrypt.decrypt(iof.read()?)?;
+    Ok(String::from_utf8(ret)?)
+}
+
 #[test]
-fn test_generate() {
-    let key = Blake3::generatr().unwrap();
-    println!("{:?}", key);
-    let key = Ed25519Signer::generatr().unwrap();
-    println!("{:?}", key)
+fn test_chacha20play() -> Result<()> {
+    let chacha20 = Chacha20 { key: [8u8; 32] };
+
+    let strs = "sdasdsadad";
+    let content = strs.as_bytes().to_vec();
+
+    let encrypt = chacha20.encrypt(content)?;
+    let decrypt = chacha20.decrypt(encrypt)?;
+
+    println!("{},{}", strs, String::from_utf8(decrypt)?);
+
+    Ok(())
 }

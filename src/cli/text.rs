@@ -14,6 +14,30 @@ pub enum TextSubConnand {
 
     #[command(name = "generate")]
     Generate(TextGenpassKeyOption),
+
+    #[command(name = "encrypt")]
+    Encrypt(EncryptOption),
+
+    #[command(name = "decrypt")]
+    Decrypt(DecryptOption),
+}
+
+#[derive(Debug, Parser)]
+pub struct EncryptOption {
+    #[arg(short,long,value_parser = verify_file,default_value = "-")]
+    pub input: String,
+
+    #[arg(short,long,value_parser = verify_file,default_value = "-")]
+    pub key: String,
+}
+
+#[derive(Debug, Parser)]
+pub struct DecryptOption {
+    #[arg(short,long,value_parser = verify_file,default_value = "-")]
+    pub input: String,
+
+    #[arg(short,long,value_parser = verify_file,default_value = "-")]
+    pub key: String,
 }
 
 #[derive(Debug, Parser)]

@@ -1,8 +1,10 @@
 use super::{verify_file, CMDExector};
 use crate::{verify_time, JwtClaims};
 use clap::Parser;
+use enum_dispatch::enum_dispatch;
 
 #[derive(Debug, Parser)]
+#[enum_dispatch(CMDExector)]
 pub enum JwtSubConnand {
     #[command(name = "sign")]
     Sign(JwtSignOpts),
@@ -49,14 +51,5 @@ impl CMDExector for JwtSignOpts {
         let claims: JwtClaims = self.into();
         println!("{:?}", claims);
         Ok(())
-    }
-}
-
-impl CMDExector for JwtSubConnand {
-    async fn execute(self) -> anyhow::Result<()> {
-        match self {
-            JwtSubConnand::Sign(opts) => opts.execute().await,
-            JwtSubConnand::Verify(opts) => opts.execute().await,
-        }
     }
 }

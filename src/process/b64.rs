@@ -1,18 +1,13 @@
-use std::io::Read;
-
 use base64::{
     engine::general_purpose::{STANDARD, URL_SAFE},
     Engine as _,
 };
 
-use crate::{cli::Base64Format, get_reader};
+use crate::{cli::Base64Format, IoF};
 
 pub fn process_encode(input: &str, format: Base64Format) -> anyhow::Result<String> {
-    let mut reader = get_reader(input)?;
-
-    let mut data = Vec::new();
-
-    reader.read_to_end(&mut data)?;
+    let iof = IoF::new(input);
+    let data = iof.read()?;
 
     let encoded = match format {
         Base64Format::Standard => STANDARD.encode(&data),
@@ -23,20 +18,15 @@ pub fn process_encode(input: &str, format: Base64Format) -> anyhow::Result<Strin
 }
 
 pub fn process_decode(input: &str, format: Base64Format) -> anyhow::Result<String> {
-    let mut reader = get_reader(input)?;
+    let iof = IoF::new(input);
+    let data = iof.read_to_string()?;
 
-    let mut data = String::new();
-    reader.read_to_string(&mut data)?;
-
-    // 清理 空白数据
-    let data = data.trim();
-
-    let encoded = match format {
+    let decoded = match format {
         Base64Format::Standard => STANDARD.decode(data)?,
         Base64Format::UrlSafe => URL_SAFE.decode(data)?,
     };
 
-    let encoded = String::from_utf8(encoded)?;
+    let encoded = String::from_utf8(decoded)?;
 
     Ok(encoded)
 }

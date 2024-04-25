@@ -36,6 +36,29 @@ impl IoF {
         Ok(data)
     }
 
+    pub fn to_read(self) -> Box<dyn Read> {
+        match self {
+            Self::File(f) => Box::new(f),
+            Self::Stdin(input) => Box::new(input),
+        }
+    }
+
+    pub fn read_to_string(&self) -> anyhow::Result<String> {
+        let mut data = String::new();
+        match self {
+            Self::File(f) => {
+                #[allow(clippy::borrow_deref_ref)]
+                (&*f).read_to_string(&mut data)?;
+            }
+            Self::Stdin(input) => {
+                let mut buf = String::new();
+                input.read_line(&mut buf)?;
+                data.push_str(buf.trim());
+            }
+        };
+        Ok(data)
+    }
+
     pub fn new(input: &str) -> Self {
         if input == "-" {
             Self::Stdin(std::io::stdin())

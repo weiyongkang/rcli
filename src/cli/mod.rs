@@ -5,17 +5,10 @@ mod http;
 mod jwt;
 mod text;
 use clap::Parser;
+use enum_dispatch::enum_dispatch;
 use std::path::{Path, PathBuf};
 
-// use crate::CMDExector;
-
-use self::{csv::CsvOption, genpass::GenpassOption};
-
-pub use self::base64::{Base64Format, Base64SubConnand};
-pub use self::csv::OutputFormat;
-pub use self::http::{HttpServerOpts, HttpSubConnand};
-pub use self::jwt::{JwtSignOpts, JwtSubConnand};
-pub use self::text::{TextSignFormat, TextSubConnand};
+pub use self::{base64::*, csv::*, genpass::*, http::*, jwt::*, text::*};
 /// Simple program to greet a person
 #[derive(Parser, Debug)]
 #[command(name = "rcli",version, about, long_about = None)]
@@ -25,6 +18,7 @@ pub struct Opts {
 }
 
 #[derive(Parser, Debug)]
+#[enum_dispatch(CMDExector)]
 pub enum Subcommand {
     #[command(name = "csv", about = "csv file operation")]
     Csv(CsvOption),
@@ -58,21 +52,9 @@ fn verify_path(path: &str) -> Result<PathBuf, &'static str> {
 }
 
 #[allow(async_fn_in_trait)]
+#[enum_dispatch]
 pub trait CMDExector {
     async fn execute(self) -> anyhow::Result<()>;
-}
-
-impl CMDExector for Subcommand {
-    async fn execute(self) -> anyhow::Result<()> {
-        match self {
-            Self::Csv(opts) => opts.execute().await,
-            Self::Genpass(opts) => opts.execute().await,
-            Self::Base64(opts) => opts.execute().await,
-            Self::Text(opts) => opts.execute().await,
-            Self::Http(opts) => opts.execute().await,
-            Self::Jwt(opts) => opts.execute().await,
-        }
-    }
 }
 
 impl CMDExector for Opts {

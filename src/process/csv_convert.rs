@@ -10,21 +10,6 @@ pub fn process_csv(input: &str, output: &str, format: OutputFormat) -> anyhow::R
     let headers = reader.headers()?.clone();
     for result in reader.records() {
         let record = result?;
-        // let iter = headers.iter().zip(record.iter());
-        // let json_value:String = match format {
-        //     OutputFormat::Json => {
-        //         let v = iter.collect::<serde_json::Value>();
-        //         serde_json::to_string_pretty(&v)?
-        //     },
-        //     OutputFormat::Yaml => {
-        //         let v = iter.collect::<serde_yaml::value::Value>();
-        //     },
-        //     OutputFormat::Toml => {
-        //         iter.collect::<toml::Value>();
-        //         "".into()
-        //     },
-        // };
-
         let json_value = headers
             .iter()
             .zip(record.iter())
@@ -37,8 +22,6 @@ pub fn process_csv(input: &str, output: &str, format: OutputFormat) -> anyhow::R
         OutputFormat::Yaml => serde_yaml::to_string(&ret)?,
         OutputFormat::Toml => toml::to_string(&ret)?,
     };
-
-    // let json = serde_json::to_string_pretty(&ret)?;
 
     fs::write(output, content)?;
 

@@ -4,7 +4,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::{get_reader, process_genpass, IoF, TextSignFormat};
+use crate::{process_genpass, IoF, TextSignFormat};
 use anyhow::{Ok, Result};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use chacha20poly1305::{
@@ -16,18 +16,17 @@ use ed25519_dalek::{Signature, Signer, SigningKey, VerifyingKey};
 use rand::rngs::OsRng;
 
 pub fn process_text_sign(input: &str, key: &str, format: TextSignFormat) -> anyhow::Result<String> {
-    let mut reader = get_reader(input)?;
-    let mut buf = Vec::new();
-    reader.read_to_end(&mut buf)?;
+    let iof = IoF::new(input);
+    let mut data = iof.to_read();
 
     let signed = match format {
         TextSignFormat::Blake3 => {
             let signer = Blake3::load(key)?;
-            signer.sign(&mut reader)?
+            signer.sign(&mut data)?
         }
         TextSignFormat::Ed25519 => {
             let signer = Ed25519Signer::load(key)?;
-            signer.sign(&mut reader)?
+            signer.sign(&mut data)?
         }
     };
 
@@ -41,20 +40,19 @@ pub fn process_text_verify(
     format: TextSignFormat,
     sign: &str,
 ) -> anyhow::Result<bool> {
-    let mut reader = get_reader(input)?;
-    let mut buf = Vec::new();
-    reader.read_to_end(&mut buf)?;
+    let iof = IoF::new(input);
+    let mut data = iof.to_read();
 
     let sign = URL_SAFE_NO_PAD.decode(sign)?;
 
     let signed = match format {
         TextSignFormat::Blake3 => {
             let signer = Blake3::load(key)?;
-            signer.verify(&mut reader, &sign)?
+            signer.verify(&mut data, &sign)?
         }
         TextSignFormat::Ed25519 => {
             let signer = Ed25519Verify::load(key)?;
-            signer.verify(&mut reader, &sign)?
+            signer.verify(&mut data, &sign)?
         }
     };
 
@@ -252,11 +250,6 @@ pub trait TextDecrypt {
     fn decrypt(&self, data: Vec<u8>) -> Result<Vec<u8>>;
 
     fn decrypt_in_read(&self, mut data: impl Read) -> Result<Vec<u8>> {
-        // let mut buf: Vec<u8> = Vec::new();
-        // data.read_to_end(&mut buf)?;
-        // Self::decrypt(&self, buf)
-
-        //
         let mut strs = String::new();
         data.read_to_string(&mut strs)?;
         Self::decrypt(self, strs.trim().into())
@@ -265,10 +258,12 @@ pub trait TextDecrypt {
 
 struct Chacha20 {
     pub key: [u8; 32],
+    // pub salt: [u8; 12],
 }
 
 impl Chacha20 {
     pub fn new(key: [u8; 32]) -> Self {
+        // let salt: GenericArray<_, U12> = chacha20poly1305::ChaCha20Poly1305::generate_nonce(&mut OsRng);
         Self { key }
     }
 
@@ -292,28 +287,17 @@ impl KeyLoader for Chacha20 {
 
 impl TextEncrypt for Chacha20 {
     fn encrypt(&self, data: Vec<u8>) -> Result<Vec<u8>> {
-        // let mut buf: Vec<u8> = Vec::new();
-        // let _ = data.read_to_end(&mut buf)?;
-
         let key = chacha20poly1305::Key::clone_from_slice(self.key.as_slice());
-        // let key = match key {
-        //     Some(ok) => {
-        //         ok
-        //     },
-        //     None => {
-        //         anyhow::bail!("key is from error!")
-        //     }
-        // };
-
-        // let mut ciphers = chacha20poly1305::ChaChaPoly1305::new_from_slice(self.key.as_slice());
-
         let mut ciphers = ChaCha20Poly1305::new(&key);
+        let salt = process_genpass(12, true, true, true, false)?; // 生成 12 位随机数
         let nonce: GenericArray<_, U12> =
-            chacha20poly1305::Nonce::clone_from_slice(&self.key.as_slice()[0..12]);
-        // let nonce:GenericArray<_,U12> = chacha20poly1305::ChaCha20Poly1305::generate_nonce(&mut OsRng); // 96-bits; unique per message
-
-        match ciphers.encrypt(&nonce, data.as_ref()) {
-            core::result::Result::Ok(d) => Ok(URL_SAFE_NO_PAD.encode(d).into()),
+            chacha20poly1305::Nonce::clone_from_slice(salt.as_bytes());
+        match ciphers.encrypt(&nonce, data.as_slice()) {
+            core::result::Result::Ok(d) => {
+                let value: String = URL_SAFE_NO_PAD.encode(d);
+                let salt: String = URL_SAFE_NO_PAD.encode(salt);
+                Ok(format!("{}|{}", value, salt).as_bytes().to_vec())
+            }
             core::result::Result::Err(_) => {
                 anyhow::bail!("data is from encrypt!")
             }
@@ -323,28 +307,19 @@ impl TextEncrypt for Chacha20 {
 
 impl TextDecrypt for Chacha20 {
     fn decrypt(&self, data: Vec<u8>) -> Result<Vec<u8>> {
-        // let mut buf: Vec<u8> = Vec::new();
-        // let _ = data.read_to_end(&mut buf)?;
+        let data = String::from_utf8(data)?;
+        let sp = data.split_terminator('|').collect::<Vec<&str>>(); // 通过 | 分割
 
-        let data = URL_SAFE_NO_PAD.decode(data)?;
+        let data = URL_SAFE_NO_PAD.decode(sp[0])?;
+        let nonce = URL_SAFE_NO_PAD.decode(sp[1])?;
 
-        let key = chacha20poly1305::Key::clone_from_slice(self.key.as_slice());
-        // let key = match key {
-        //     Some(ok) => {
-        //         ok
-        //     },
-        //     None => {
-        //         anyhow::bail!("key is from error!")
-        //     }
-        // };
-
-        // let mut ciphers = chacha20poly1305::ChaChaPoly1305::new_from_slice(self.key.as_slice());
+        let key: GenericArray<u8, _> = chacha20poly1305::Key::clone_from_slice(self.key.as_slice());
 
         let mut ciphers = ChaCha20Poly1305::new(&key);
         let nonce: GenericArray<_, U12> =
-            chacha20poly1305::Nonce::clone_from_slice(&self.key.as_slice()[0..12]);
+            chacha20poly1305::Nonce::clone_from_slice(nonce.as_slice());
 
-        match ciphers.decrypt(&nonce, data.as_ref()) {
+        match ciphers.decrypt(&nonce, data.as_slice()) {
             core::result::Result::Ok(d) => Ok(d),
             core::result::Result::Err(_) => {
                 anyhow::bail!("data is from encrypt!")

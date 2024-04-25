@@ -1,12 +1,14 @@
 use std::path::PathBuf;
 
 use clap::Parser;
+use enum_dispatch::enum_dispatch;
 
 use crate::process;
 
 use super::{verify_path, CMDExector};
 
 #[derive(Debug, Parser)]
+#[enum_dispatch(CMDExector)]
 pub enum HttpSubConnand {
     #[command(name = "server")]
     Server(HttpServerOpts),
@@ -25,13 +27,5 @@ impl CMDExector for HttpServerOpts {
     async fn execute(self) -> anyhow::Result<()> {
         process::process_http_server(self.dir, self.port).await?;
         Ok(())
-    }
-}
-
-impl CMDExector for HttpSubConnand {
-    async fn execute(self) -> anyhow::Result<()> {
-        match self {
-            HttpSubConnand::Server(opts) => opts.execute().await,
-        }
     }
 }

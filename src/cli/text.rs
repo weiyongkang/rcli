@@ -1,12 +1,14 @@
 use std::{fmt::Display, path::PathBuf, str::FromStr};
 
 use clap::Parser;
+use enum_dispatch::enum_dispatch;
 
 use crate::{process, EncryptionKey};
 
 use super::{verify_file, verify_path, CMDExector};
 
 #[derive(Debug, Parser)]
+#[enum_dispatch(CMDExector)]
 pub enum TextSubConnand {
     #[command(name = "sign")]
     Sign(SignOpts),
@@ -110,7 +112,6 @@ impl From<TextSignFormat> for &str {
 
 impl Display for TextSignFormat {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // eprintln!("Display => 111");
         match *self {
             TextSignFormat::Blake3 => write!(f, "blake3"),
             TextSignFormat::Ed25519 => write!(f, "ed25519"),
@@ -167,17 +168,5 @@ impl CMDExector for DecryptOption {
         let decrypt = process::process_text_decrypt(&self.input, &self.key)?;
         println!("{}", decrypt);
         Ok(())
-    }
-}
-
-impl CMDExector for TextSubConnand {
-    async fn execute(self) -> anyhow::Result<()> {
-        match self {
-            TextSubConnand::Sign(opts) => opts.execute().await,
-            TextSubConnand::Verify(opts) => opts.execute().await,
-            TextSubConnand::Generate(opts) => opts.execute().await,
-            TextSubConnand::Encrypt(opts) => opts.execute().await,
-            TextSubConnand::Decrypt(opts) => opts.execute().await,
-        }
     }
 }

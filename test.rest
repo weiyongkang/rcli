@@ -1,0 +1,13 @@
+### test index
+
+GET http://localhost:8080/fixtures/blake3.txt
+
+### test file dir with tower-http
+
+GET http://localhost:8080/fixtures/
+
+### test static  file with tower-http
+
+GET http://localhost:8080/tower/fixtures/ed25519.pk HTTP/2
+Accept-Encoding: gzip
+Range: bytes=0-10

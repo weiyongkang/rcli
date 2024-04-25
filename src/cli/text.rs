@@ -2,7 +2,9 @@ use std::{fmt::Display, path::PathBuf, str::FromStr};
 
 use clap::Parser;
 
-use super::{verify_file, verify_path};
+use crate::{process, EncryptionKey};
+
+use super::{verify_file, verify_path, CMDExector};
 
 #[derive(Debug, Parser)]
 pub enum TextSubConnand {
@@ -112,6 +114,70 @@ impl Display for TextSignFormat {
         match *self {
             TextSignFormat::Blake3 => write!(f, "blake3"),
             TextSignFormat::Ed25519 => write!(f, "ed25519"),
+        }
+    }
+}
+
+impl CMDExector for SignOpts {
+    async fn execute(self) -> anyhow::Result<()> {
+        let sign = process::process_text_sign(&self.input, &self.key, self.format)?;
+        println!("{}", sign);
+        Ok(())
+    }
+}
+
+impl CMDExector for VerifyOpts {
+    async fn execute(self) -> anyhow::Result<()> {
+        let verify = process::process_text_verify(&self.input, &self.key, self.format, &self.sign)?;
+        println!("{}", verify);
+        Ok(())
+    }
+}
+
+impl CMDExector for TextGenpassKeyOption {
+    async fn execute(self) -> anyhow::Result<()> {
+        let key = process::process_text_generate(self.format)?;
+        match key {
+            EncryptionKey::Symmetric(k) => {
+                let name = format!("{}.txt", self.format);
+                let name = self.output.join(name);
+                std::fs::write(name, k)?;
+            }
+            EncryptionKey::Asymmetric(pk, sk) => {
+                let name = self.output.join(format!("{}.{}", self.format, "pk"));
+                std::fs::write(name, pk)?;
+                let name = self.output.join(format!("{}.{}", self.format, "sk"));
+                std::fs::write(name, sk)?;
+            }
+        }
+        Ok(())
+    }
+}
+
+impl CMDExector for EncryptOption {
+    async fn execute(self) -> anyhow::Result<()> {
+        let encrypt = process::process_text_encrypt(&self.input, &self.key)?;
+        println!("{}", encrypt);
+        Ok(())
+    }
+}
+
+impl CMDExector for DecryptOption {
+    async fn execute(self) -> anyhow::Result<()> {
+        let decrypt = process::process_text_decrypt(&self.input, &self.key)?;
+        println!("{}", decrypt);
+        Ok(())
+    }
+}
+
+impl CMDExector for TextSubConnand {
+    async fn execute(self) -> anyhow::Result<()> {
+        match self {
+            TextSubConnand::Sign(opts) => opts.execute().await,
+            TextSubConnand::Verify(opts) => opts.execute().await,
+            TextSubConnand::Generate(opts) => opts.execute().await,
+            TextSubConnand::Encrypt(opts) => opts.execute().await,
+            TextSubConnand::Decrypt(opts) => opts.execute().await,
         }
     }
 }

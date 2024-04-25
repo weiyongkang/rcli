@@ -82,7 +82,7 @@ impl JwtClaims {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-struct JwtClaims {
+pub struct JwtClaims {
     aud: String,
     exp: usize,
     sub: String,

@@ -26,17 +26,17 @@ pub struct Opts {
 
 #[derive(Parser, Debug)]
 pub enum Subcommand {
-    #[command(name = "csv")]
+    #[command(name = "csv", about = "csv file operation")]
     Csv(CsvOption),
-    #[command(name = "genpass")]
+    #[command(name = "genpass", about = "generate password")]
     Genpass(GenpassOption),
-    #[command(subcommand)]
+    #[command(subcommand, about = "base64 encode/decode")]
     Base64(Base64SubConnand),
-    #[command(subcommand)]
+    #[command(subcommand, about = "text operation")]
     Text(TextSubConnand),
-    #[command(subcommand)]
+    #[command(subcommand, about = "http server")]
     Http(HttpSubConnand),
-    #[command(subcommand)]
+    #[command(subcommand, about = "jwt operation")]
     Jwt(JwtSubConnand),
 }
 
@@ -54,5 +54,29 @@ fn verify_path(path: &str) -> Result<PathBuf, &'static str> {
         Ok(PathBuf::from(path))
     } else {
         Err("is null or is file!")
+    }
+}
+
+#[allow(async_fn_in_trait)]
+pub trait CMDExector {
+    async fn execute(self) -> anyhow::Result<()>;
+}
+
+impl CMDExector for Subcommand {
+    async fn execute(self) -> anyhow::Result<()> {
+        match self {
+            Self::Csv(opts) => opts.execute().await,
+            Self::Genpass(opts) => opts.execute().await,
+            Self::Base64(opts) => opts.execute().await,
+            Self::Text(opts) => opts.execute().await,
+            Self::Http(opts) => opts.execute().await,
+            Self::Jwt(opts) => opts.execute().await,
+        }
+    }
+}
+
+impl CMDExector for Opts {
+    async fn execute(self) -> anyhow::Result<()> {
+        self.cmd.execute().await
     }
 }

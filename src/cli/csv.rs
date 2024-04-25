@@ -2,7 +2,9 @@ use std::{fmt::Display, str::FromStr};
 
 use clap::Parser;
 
-use super::verify_file;
+use crate::process;
+
+use super::{verify_file, CMDExector};
 
 #[derive(Debug, Clone, Copy)]
 pub enum OutputFormat {
@@ -70,5 +72,17 @@ impl TryFrom<&str> for OutputFormat {
 impl Display for OutputFormat {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", Into::<&str>::into(*self))
+    }
+}
+
+impl CMDExector for CsvOption {
+    async fn execute(self) -> anyhow::Result<()> {
+        let output = match self.output {
+            Some(o) => o,
+            None => {
+                format!("{}.{}", "output", Into::<&str>::into(self.format))
+            }
+        };
+        process::process_csv(&self.input, &output, self.format)
     }
 }

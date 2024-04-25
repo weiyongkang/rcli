@@ -2,7 +2,9 @@ use std::{fmt::Display, str::FromStr};
 
 use clap::{arg, Parser};
 
-use super::verify_file;
+use crate::process;
+
+use super::{verify_file, CMDExector};
 
 #[derive(Debug, Parser)]
 pub enum Base64SubConnand {
@@ -57,6 +59,31 @@ impl Display for Base64Format {
         match *self {
             Base64Format::Standard => write!(f, "standard"),
             Base64Format::UrlSafe => write!(f, "urlsafe"),
+        }
+    }
+}
+
+impl CMDExector for EncodeOpts {
+    async fn execute(self) -> anyhow::Result<()> {
+        let encode = process::process_encode(&self.input, self.format)?;
+        println!("{}", encode);
+        Ok(())
+    }
+}
+
+impl CMDExector for DecodeOpts {
+    async fn execute(self) -> anyhow::Result<()> {
+        let decode = process::process_decode(&self.input, self.format)?;
+        println!("{}", decode);
+        Ok(())
+    }
+}
+
+impl CMDExector for Base64SubConnand {
+    async fn execute(self) -> anyhow::Result<()> {
+        match self {
+            Self::Encode(opts) => opts.execute().await,
+            Self::Decode(opts) => opts.execute().await,
         }
     }
 }

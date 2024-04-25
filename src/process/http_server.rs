@@ -38,14 +38,6 @@ pub async fn process_http_server(path: PathBuf, port: u16) -> Result<()> {
     Ok(())
 }
 
-// async fn index_handler(
-//     State(state): State<Arc<HttpServerState>>,
-//     Path(path): Path<String>,
-// ) -> String {
-//     format!("{:?},{:?}", state, path)
-//     // "hello world!"
-// }
-
 // todo 返回数据是string，因为会直接读取到string，所以会有问题，到时候调整成 读取后直接写入输出流
 async fn file_handler(
     State(state): State<Arc<HttpServerState>>,

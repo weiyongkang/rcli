@@ -14,4 +14,4 @@ pub use text::{
     process_text_verify, EncryptionKey,
 };
 
-pub use jwt::{process_jwt_sign, process_jwt_verify};
+pub use jwt::{process_jwt_sign, process_jwt_verify, JwtClaims};
